@@ -8,7 +8,6 @@
 <link href="https://image.uc.cn/s/uae/g/3n/mos-production/fontawesome-free-7.1.0-web/css/fontawesome.min.css" rel="stylesheet"/>
 <script src="https://image.uc.cn/s/uae/g/3n/mos-production/0915/3.4.17.js"></script>
 <style>
-    /* 样式与最终版相同，此处省略以保持简洁，实际使用时请复制完整样式 */
     :root {
         --bg-color: #121212;
         --panel-bg: #1e1e1e;
@@ -299,7 +298,6 @@
         color: black !important;
     }
 
-    /* PC 适配 */
     @media (min-width: 768px) {
         .main-layout {
             max-width: 1200px;
@@ -333,7 +331,6 @@
 </style>
 </head>
 <body>
-<!-- Start Screen -->
 <div class="start-screen" id="startScreen">
     <h1 class="text-4xl font-bold mb-2 text-gold">第十夜</h1>
     <h2 class="text-xl mb-8 text-gray-400">The Tenth Night</h2>
@@ -364,12 +361,12 @@
             <p class="mb-2"><strong class="text-red">💀 警告：</strong>你的生命最为珍贵！一旦你倒下，游戏即告失败。</p>
             <p class="mb-2"><strong class="text-white">📜 规则：</strong>每回合移动1-3格，每格消耗全队每人1块面包，并触发随机事件。</p>
             <p class="mb-2"><strong class="text-gold">✨ 上帝祝福：</strong>每成功度过<strong>4次试炼</strong>或全队累计消耗<strong>35块面包</strong>时，你将获得三选一奖励（面包、生命恢复或揭示迷雾）。</p>
+            <p class="mb-2"><strong class="text-gold">🧙 旅行商人：</strong>当有队友牺牲时，神秘商人会出现。你可以用<strong>6块面包</strong>或<strong>1生命+3块面包</strong>换取终点距离提示（最少步数）。</p>
             <p class="mb-2"><strong class="text-white">🏆 胜利：</strong>抵达终点，存活队友越多奖励越丰厚！</p>
         </div>
         <button class="btn btn-primary" onclick="showRoleSelection()">抽取身份牌</button>
     </div>
 </div>
-<!-- Main Game UI -->
 <div class="main-layout hidden" id="gameUI">
     <div class="top-bar">
         <div><i class="fas fa-clock"></i> 天数: <span class="text-gold" id="dayDisplay">1</span>/10</div>
@@ -422,7 +419,6 @@
     const TYPE_END = 'end';
     const TYPE_EMPTY = 'empty';
 
-    // 事件定义
     const EVENT_DEFS = [
         { id: 'wheat', type: TYPE_FOOD, name: '麦穗之赐', icon: '🌾', count: 72, effect: (ctx) => {
             let amount = Math.random() < 0.6 ? 2 : 1;
@@ -495,7 +491,10 @@
             let direction = "";
             if (isNorthSouth) direction = dy > 0 ? "南方" : (dy < 0 ? "北方" : "正上方/正下方");
             else direction = dx > 0 ? "东方" : (dx < 0 ? "西方" : "正左方/正右方");
-            ctx.log(`上帝指引：圣光之门在${direction}。`, 'highlight');
+            let msg = `上帝指引：圣光之门在${direction}。`;
+            ctx.log(msg, 'highlight');
+            // 弹窗显示方位信息
+            showModal("上帝指引", msg, [{text:"知晓", action:closeModal}]);
         }},
         { id: 'rune', type: TYPE_MIRACLE, name: '净化符文', icon: '🛡️', count: 8, effect: (ctx) => {
             ctx.state.runes++;
@@ -517,15 +516,16 @@
         shadowStolenToday: false, seerUsedToday: false, wealthInvestUsedToday: false,
         healerSelfReviveUsed: false,
         trialCount: 0, totalBreadConsumed: 0,
-        eventCount: { food: 0, trial: 0, miracle: 0 }
+        eventCount: { food: 0, trial: 0, miracle: 0 },
         merchantTriggered: false
     };
 
-    // 启明示者相关变量
     let seerSelectMode = false;
     let seerRevealRemaining = 0;
 
-    // 显示面包分配弹窗
+    let wealthInvestMode = false;
+    let wealthInvestAmount = 0;
+
     function showDistributionDialog(amount, onDistribute) {
         let chars = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
         if (chars.length === 0) { log("没有存活角色可以分配面包。", "danger"); return; }
@@ -628,10 +628,8 @@
         updateUI();
     }
 
-    // 启明示者技能激活
     function startSeerSelect() {
         if (seerSelectMode) {
-            // 退出模式，提示剩余未揭示数量
             if (seerRevealRemaining > 0) {
                 log(`已退出揭示模式，剩余 ${seerRevealRemaining} 格未揭示。`, 'info');
             }
@@ -646,8 +644,6 @@
         log("请点击两个未揭示的格子以查看事件类型。", "highlight");
     }
 
-    let wealthInvestMode = false;
-    let wealthInvestAmount = 0;
     function startWealthInvest() {
         if (gameState.steps >= MAX_STEPS) {
             showModal("提示", "今日步数已用尽，无法投资。", [{text:"确定", action:closeModal}]);
@@ -673,17 +669,13 @@
                 log("只能揭示未揭示的格子。", "info");
                 return;
             }
-            if (cell.type === TYPE_END) {
-                log("不能揭示终点。", "info");
-                return;
-            }
-            let typeName = getEventTypeName(cell.type);
+            // 允许揭示终点，显示“终点”
+            let typeName = (cell.type === TYPE_END) ? "终点" : getEventTypeName(cell.type);
             log(`揭示了 (${x+1}, ${y+1})：${typeName}`, 'info');
             cell.revealed = true;
             seerRevealRemaining--;
             renderMap();
             if (seerRevealRemaining === 0) {
-                // 揭示完毕，退出模式
                 seerSelectMode = false;
                 document.getElementById('skillBtn').classList.remove('select-mode-active');
                 log("启明示者技能使用完毕。", 'info');
@@ -792,7 +784,7 @@
         checkDeath();
     }
 
-    function triggerGuardian(ctx, eventDef) {
+        function triggerGuardian(ctx, eventDef) {
         let targets = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
         if (targets.length === 0) return;
         let selectCount = Math.min(2, targets.length);
@@ -830,43 +822,43 @@
 
     function checkDeath() {
         if (gameState.player.hp <= 0 && gameState.player.role === 'healer' && !gameState.healerSelfReviveUsed) {
-        gameState.healerSelfReviveUsed = true;
-        gameState.player.hp = 1;
-            if(gameState.player.bread < 0) gameState.player.bread = 0;
+            gameState.healerSelfReviveUsed = true;
+            gameState.player.hp = 1;
+            if (gameState.player.bread < 0) gameState.player.bread = 0;
             log("执烛医者濒死自愈，恢复了1点生命，面包重置为0。", "highlight");
         }
         if (gameState.player.hp <= 0) { endGame(false, "你倒在了黑暗中..."); return; }
-    
+        
         let anyAllyDied = false;
         gameState.allies.forEach(ally => {
-            if(ally.hp <= 0 && ally.bread > 0) {
+            if (ally.hp <= 0 && ally.bread > 0) {
                 gameState.player.bread += ally.bread;
                 log(`${ally.name} 牺牲，剩余 ${ally.bread} 块面包转移给了你。`, 'info');
                 ally.bread = 0;
             }
-            if(ally.hp <= 0 && !ally.deadLogged) {
+            if (ally.hp <= 0 && !ally.deadLogged) {
                 ally.deadLogged = true;
                 log(`${ally.name} 牺牲了。`, 'danger');
                 anyAllyDied = true;
             }
         });
-    
-        // 触发商人（仅一次）
-        if(anyAllyDied && !gameState.merchantTriggered) {
-           gameState.merchantTriggered = true;
-           showMerchant();
+        
+        // 触发旅行商人（仅一次）
+        if (anyAllyDied && !gameState.merchantTriggered) {
+            gameState.merchantTriggered = true;
+            showMerchant();
         }
     }
 
     function showMerchant() {
         let actions = [
-            { 
-                text:"6块面包",
+            {
+                text: "6块面包",
                 action: () => {
-                    if(gameState.player.bread >= 6) {
-                       gameState.player.bread -= 6;
-                       revealDistance();
-                       closeModal();
+                    if (gameState.player.bread >= 6) {
+                        gameState.player.bread -= 6;
+                        revealDistance();
+                        closeModal();
                     } else {
                         log("面包不足，无法交易。", "danger");
                         closeModal();
@@ -874,9 +866,8 @@
                 }
             },
             {
-                text:"1生命 + 3面包",
+                text: "1生命 + 3面包",
                 action: () => {
-                    // 选择牺牲哪个角色
                     let aliveChars = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
                     if (aliveChars.length === 0) {
                         log("没有可牺牲的角色。", "danger");
@@ -888,16 +879,13 @@
                         closeModal();
                         return;
                     }
-                    // 弹出选择角色的弹窗
                     let actions2 = aliveChars.map(c => ({
                         text: c.name,
                         action: () => {
-                            // 扣除生命和面包
                             c.hp--;
                             gameState.player.bread -= 3;
                             log(`${c.name} 牺牲了1生命，并支付了3块面包。`, "danger");
                             if (c.hp <= 0) {
-                                // 若角色死亡，处理死亡逻辑
                                 if (!c.isPlayer) {
                                     c.bread = 0;
                                     log(`${c.name} 牺牲了。`, 'danger');
@@ -910,7 +898,7 @@
                             updateUI();
                         }
                     }));
-                        showModal("旅行商人", "请选择牺牲的角色：", actions2);
+                    showModal("旅行商人", "请选择牺牲的角色：", actions2);
                 }
             }
         ];
@@ -918,7 +906,6 @@
     }
 
     function revealDistance() {
-        // 计算曼哈顿距离：取终点区域所有格子到当前位置的最小曼哈顿距离
         let minDist = Infinity;
         for (let pos of gameState.endZone) {
             let dist = Math.abs(pos.x - gameState.pos.x) + Math.abs(pos.y - gameState.pos.y);
@@ -926,7 +913,7 @@
         }
         log(`旅行商人告诉你：圣光之门距离此地最少需要移动 ${minDist} 步。`, 'highlight');
     }
-    
+
     function endTurn() {
         if (gameState.isGameOver) return;
         if (gameState.day >= MAX_DAYS) { endGame(false, "第十夜已至，你未能抵达圣光之门。"); return; }
@@ -1209,3 +1196,4 @@
 </script>
 </body>
 </html>
+                        
