@@ -502,14 +502,14 @@
                 direction = (playerX < minX) ? "东方" : "西方";
             } else if (sameCol && !sameRow) {
                 // 同列，只提示南北方向
-                direction = (playerY < minY) ? "北方" : "南方";
+                direction = (playerY < minY) ? "南方" : "北方";
             } else {
                 // 不同行也不同列，随机选择东西或南北
                 let isEastWest = Math.random() < 0.5;
                 if (isEastWest) {
                     direction = (playerX < minX) ? "东方" : "西方";
                 } else {
-                    direction = (playerY < minY) ? "北方" : "南方";
+                    direction = (playerY < minY) ? "南方" : "北方";
                 }
             }
             
@@ -1004,7 +1004,7 @@
         if (type === TYPE_MIRACLE) return "奇迹";
         return "未知";
     }
-
+    
     function endGame(win, reason) {
         gameState.isGameOver = true;
         let title = "", msg = "";
@@ -1014,10 +1014,19 @@
             if (survivorCount === 1) { title = "孤光终临"; msg = "你独自一人抵达了终点，虽然孤独，但生存了下来。"; }
             else if (survivorCount === 2) { title = "残月同辉"; msg = "你与一名队友成功抵达，微弱的星光汇聚在一起。"; }
             else { title = "圣光普照"; msg = "奇迹！全员生还抵达终点！圣光将照耀你们。"; }
+            // 胜利时揭示终点所有格子
+            gameState.endZone.forEach(pos => {
+                let cell = gameState.map[pos.y][pos.x];
+                cell.revealed = true;
+            });
+            renderMap(); // 刷新地图显示终点
         } else {
             title = "游戏结束";
             msg = reason || "你倒在了第十夜的黑暗中...";
-            gameState.endZone.forEach(pos => { let cell = gameState.map[pos.y][pos.x]; cell.revealed = true; });
+            gameState.endZone.forEach(pos => {
+                let cell = gameState.map[pos.y][pos.x];
+                cell.revealed = true;
+            });
             renderMap();
             let endCoords = gameState.endZone.map(p => `(${p.x+1},${p.y+1})`).join(', ');
             msg += `\n\n终点位置: ${endCoords}`;
