@@ -518,6 +518,7 @@
         healerSelfReviveUsed: false,
         trialCount: 0, totalBreadConsumed: 0,
         eventCount: { food: 0, trial: 0, miracle: 0 }
+        merchantTriggered: false
     };
 
     // 启明示者相关变量
@@ -829,25 +830,103 @@
 
     function checkDeath() {
         if (gameState.player.hp <= 0 && gameState.player.role === 'healer' && !gameState.healerSelfReviveUsed) {
-            gameState.healerSelfReviveUsed = true;
-            gameState.player.hp = 1;
-            if (gameState.player.bread < 0) gameState.player.bread = 0;
+        gameState.healerSelfReviveUsed = true;
+        gameState.player.hp = 1;
+            if(gameState.player.bread < 0) gameState.player.bread = 0;
             log("执烛医者濒死自愈，恢复了1点生命，面包重置为0。", "highlight");
         }
         if (gameState.player.hp <= 0) { endGame(false, "你倒在了黑暗中..."); return; }
+    
+        let anyAllyDied = false;
         gameState.allies.forEach(ally => {
-            if (ally.hp <= 0 && ally.bread > 0) {
+            if(ally.hp <= 0 && ally.bread > 0) {
                 gameState.player.bread += ally.bread;
                 log(`${ally.name} 牺牲，剩余 ${ally.bread} 块面包转移给了你。`, 'info');
                 ally.bread = 0;
             }
-            if (ally.hp <= 0 && !ally.deadLogged) {
+            if(ally.hp <= 0 && !ally.deadLogged) {
                 ally.deadLogged = true;
                 log(`${ally.name} 牺牲了。`, 'danger');
+                anyAllyDied = true;
             }
         });
+    
+        // 触发商人（仅一次）
+        if(anyAllyDied && !gameState.merchantTriggered) {
+           gameState.merchantTriggered = true;
+           showMerchant();
+        }
     }
 
+    function showMerchant() {
+        let actions = [
+            { 
+                text:"6块面包",
+                action: () => {
+                    if(gameState.player.bread >= 6) {
+                       gameState.player.bread -= 6;
+                       revealDistance();
+                       closeModal();
+                    } else {
+                        log("面包不足，无法交易。", "danger");
+                        closeModal();
+                    }
+                }
+            },
+            {
+                text:"1生命 + 3面包",
+                action: () => {
+                    // 选择牺牲哪个角色
+                    let aliveChars = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
+                    if (aliveChars.length === 0) {
+                        log("没有可牺牲的角色。", "danger");
+                        closeModal();
+                        return;
+                    }
+                    if (gameState.player.bread < 3) {
+                        log("面包不足，无法交易。", "danger");
+                        closeModal();
+                        return;
+                    }
+                    // 弹出选择角色的弹窗
+                    let actions2 = aliveChars.map(c => ({
+                        text: c.name,
+                        action: () => {
+                            // 扣除生命和面包
+                            c.hp--;
+                            gameState.player.bread -= 3;
+                            log(`${c.name} 牺牲了1生命，并支付了3块面包。`, "danger");
+                            if (c.hp <= 0) {
+                                // 若角色死亡，处理死亡逻辑
+                                if (!c.isPlayer) {
+                                    c.bread = 0;
+                                    log(`${c.name} 牺牲了。`, 'danger');
+                                } else {
+                                    endGame(false, "你在交易中失去了生命...");
+                                }
+                            }
+                            revealDistance();
+                            closeModal();
+                            updateUI();
+                        }
+                    }));
+                        showModal("旅行商人", "请选择牺牲的角色：", actions2);
+                }
+            }
+        ];
+        showModal("旅行商人", "一位神秘商人出现。你可以用以下方式换取终点距离信息：", actions);
+    }
+
+    function revealDistance() {
+        // 计算曼哈顿距离：取终点区域所有格子到当前位置的最小曼哈顿距离
+        let minDist = Infinity;
+        for (let pos of gameState.endZone) {
+            let dist = Math.abs(pos.x - gameState.pos.x) + Math.abs(pos.y - gameState.pos.y);
+            if (dist < minDist) minDist = dist;
+        }
+        log(`旅行商人告诉你：圣光之门距离此地最少需要移动 ${minDist} 步。`, 'highlight');
+    }
+    
     function endTurn() {
         if (gameState.isGameOver) return;
         if (gameState.day >= MAX_DAYS) { endGame(false, "第十夜已至，你未能抵达圣光之门。"); return; }
@@ -1081,6 +1160,7 @@
         gameState.trialCount = 0;
         gameState.totalBreadConsumed = 0;
         gameState.eventCount = { food: 0, trial: 0, miracle: 0 };
+        gameState.merchantTriggered = false;
         seerSelectMode = false;
         seerRevealRemaining = 0;
         updateEventStats();
