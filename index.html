@@ -489,18 +489,28 @@
             let maxX = Math.max(...endPositions.map(p => p.x));
             let minY = Math.min(...endPositions.map(p => p.y));
             let maxY = Math.max(...endPositions.map(p => p.y));
+            let playerX = ctx.state.pos.x;
+            let playerY = ctx.state.pos.y;
     
-            let isNorthSouth = (ctx.cell.x + ctx.cell.y) % 2 === 0;
+            // 判断是否在同一行或同一列
+            let sameRow = (playerY >= minY && playerY <= maxY);
+            let sameCol = (playerX >= minX && playerX <= maxX);
+    
             let direction = "";
-    
-            if (isNorthSouth) {
-                if (ctx.state.pos.y < minY) direction = "北方";
-                else if (ctx.state.pos.y > maxY) direction = "南方";
-                else direction = "正上方/正下方";
+            if (sameRow && !sameCol) {
+                // 同行，只提示东西方向
+                direction = (playerX < minX) ? "东方" : "西方";
+            } else if (sameCol && !sameRow) {
+                // 同列，只提示南北方向
+                direction = (playerY < minY) ? "北方" : "南方";
             } else {
-                if (ctx.state.pos.x < minX) direction = "西方";
-                else if (ctx.state.pos.x > maxX) direction = "东方";
-                else direction = "正左方/正右方";
+                // 不同行也不同列，随机选择东西或南北
+                let isEastWest = Math.random() < 0.5;
+                if (isEastWest) {
+                    direction = (playerX < minX) ? "东方" : "西方";
+                } else {
+                    direction = (playerY < minY) ? "北方" : "南方";
+                }
             }
             
             let msg = `上帝指引：圣光之门在${direction}。`;
