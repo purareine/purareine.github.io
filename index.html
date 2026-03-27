@@ -484,16 +484,27 @@
             [ctx.player, ...ctx.allies].forEach(c => { if (c.hp > 0 && c.hp < c.maxHp) c.hp++; });
         }},
         { id: 'guidance', type: TYPE_MIRACLE, name: '上帝指引', icon: '👁️', count: 6, effect: (ctx) => {
+            let endPositions = ctx.state.endZone;
+            let minX = Math.min(...endPositions.map(p => p.x));
+            let maxX = Math.max(...endPositions.map(p => p.x));
+            let minY = Math.min(...endPositions.map(p => p.y));
+            let maxY = Math.max(...endPositions.map(p => p.y));
+    
             let isNorthSouth = (ctx.cell.x + ctx.cell.y) % 2 === 0;
-            let endPos = ctx.state.endZone[0];
-            let dx = endPos.x - ctx.state.pos.x;
-            let dy = endPos.y - ctx.state.pos.y;
             let direction = "";
-            if (isNorthSouth) direction = dy > 0 ? "南方" : (dy < 0 ? "北方" : "正上方/正下方");
-            else direction = dx > 0 ? "东方" : (dx < 0 ? "西方" : "正左方/正右方");
+    
+            if (isNorthSouth) {
+                if (ctx.state.pos.y < minY) direction = "北方";
+                else if (ctx.state.pos.y > maxY) direction = "南方";
+                else direction = "正上方/正下方";
+            } else {
+                if (ctx.state.pos.x < minX) direction = "西方";
+                else if (ctx.state.pos.x > maxX) direction = "东方";
+                else direction = "正左方/正右方";
+            }
+            
             let msg = `上帝指引：圣光之门在${direction}。`;
             ctx.log(msg, 'highlight');
-            // 弹窗显示方位信息
             showModal("上帝指引", msg, [{text:"知晓", action:closeModal}]);
         }},
         { id: 'rune', type: TYPE_MIRACLE, name: '净化符文', icon: '🛡️', count: 8, effect: (ctx) => {
@@ -853,10 +864,10 @@
     function showMerchant() {
         let actions = [
             {
-                text: "6块面包",
+                text: "4块面包",
                 action: () => {
-                    if (gameState.player.bread >= 6) {
-                        gameState.player.bread -= 6;
+                    if (gameState.player.bread >= 4) {
+                        gameState.player.bread -= 4;
                         revealDistance();
                         closeModal();
                     } else {
@@ -866,7 +877,7 @@
                 }
             },
             {
-                text: "1生命 + 3面包",
+                text: "1生命",
                 action: () => {
                     let aliveChars = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
                     if (aliveChars.length === 0) {
@@ -874,17 +885,11 @@
                         closeModal();
                         return;
                     }
-                    if (gameState.player.bread < 3) {
-                        log("面包不足，无法交易。", "danger");
-                        closeModal();
-                        return;
-                    }
                     let actions2 = aliveChars.map(c => ({
                         text: c.name,
                         action: () => {
                             c.hp--;
-                            gameState.player.bread -= 3;
-                            log(`${c.name} 牺牲了1生命，并支付了3块面包。`, "danger");
+                            log(`${c.name} 牺牲了1生命。`, "danger");
                             if (c.hp <= 0) {
                                 if (!c.isPlayer) {
                                     c.bread = 0;
@@ -899,6 +904,13 @@
                         }
                     }));
                     showModal("旅行商人", "请选择牺牲的角色：", actions2);
+                }
+            },
+            {
+                text: "离开",
+                action: () => {
+                    log("旅行商人离开了。", "info");
+                    closeModal();
                 }
             }
         ];
