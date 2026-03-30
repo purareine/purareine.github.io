@@ -63,6 +63,10 @@
         background-color: #2a2a2a;
         animation: fadeIn 0.3s ease;
     }
+    .start-point {
+    background-color: #3a6ea5;      /* 特殊背景色，可自行调整 */
+    box-shadow: inset 0 0 0 2px gold; /* 金色边框内发光 */
+    }
     @keyframes fadeIn {
         from { opacity: 0; background-color: #000; }
         to { opacity: 1; background-color: #2a2a2a; }
@@ -371,7 +375,8 @@
     <div class="top-bar">
         <div><i class="fas fa-clock"></i> 天数: <span class="text-gold" id="dayDisplay">1</span>/10</div>
         <div><i class="fas fa-shoe-prints"></i> 步数: <span class="text-gold" id="stepDisplay">0</span>/3</div>
-        <div class="hidden" id="runeDisplay"><i class="fas fa-shield-alt text-blue-400"></i> <span id="runeCount">0</span></div>
+        <div class="hidden" id="runeDisplay">...</div>
+        <div id="difficultyDisplay" style="margin-left: auto;"></div>
     </div>
     <div class="middle-section">
         <div class="map-container">
@@ -538,7 +543,9 @@
         healerSelfReviveUsed: false,
         trialCount: 0, totalBreadConsumed: 0,
         eventCount: { food: 0, trial: 0, miracle: 0 },
-        merchantTriggered: false
+        merchantTriggered: false,
+        difficulty: "normal",           // 新增，默认普通
+        permanentRevealed: new Set()    // 存储永久揭示的格子坐标字符串 "x,y"
     };
 
     let seerSelectMode = false;
@@ -686,15 +693,17 @@
         // 启明示者揭示模式
         if (seerSelectMode && seerRevealRemaining > 0) {
             let cell = gameState.map[y][x];
-            if (cell.revealed) {
-                log("只能揭示未揭示的格子。", "info");
-                return;
-            }
-            // 允许揭示终点，显示“终点”
+            if (cell.revealed) { log("只能揭示未揭示的格子。", "info"); return; }
+            // 允许揭示终点
             let typeName = (cell.type === TYPE_END) ? "终点" : getEventTypeName(cell.type);
             log(`揭示了 (${x+1}, ${y+1})：${typeName}`, 'info');
             cell.revealed = true;
+            // 困难模式下，将该格子加入永久揭示集合
+            if (gameState.difficulty === "hard") {
+                gameState.permanentRevealed.add(`${x},${y}`);
+            }
             seerRevealRemaining--;
+            // ... 后续逻辑
             renderMap();
             if (seerRevealRemaining === 0) {
                 seerSelectMode = false;
@@ -757,6 +766,11 @@
         }
         checkBreadStarvation();
         checkDeath();
+        if (gameState.difficulty === "hard") {
+            applyHardModeFog();
+        }
+    updateUI();
+        }
         updateUI();
     }
 
@@ -871,6 +885,20 @@
         }
     }
 
+    function applyHardModeFog() {
+        // 重置所有非永久揭示的格子的 revealed 状态
+        for (let y = 0; y < MAP_SIZE; y++) {
+            for (let x = 0; x < MAP_SIZE; x++) {
+                let cell = gameState.map[y][x];
+                let key = `${x},${y}`;
+                // 如果格子不是永久揭示且不是当前位置，则将其重新设为未揭示
+                if (!gameState.permanentRevealed.has(key) && !(x === gameState.pos.x && y === gameState.pos.y)) {
+                    cell.revealed = false;
+                }
+            }
+        }
+    }
+    
     function showMerchant() {
         let actions = [
             {
@@ -989,6 +1017,9 @@
             let cell = ctx.map[ry][rx];
             if (!cell.revealed && cell.type !== TYPE_END) {
                 cell.revealed = true;
+                if (gameState.difficulty === "hard") {
+                    gameState.permanentRevealed.add(`${rx},${ry}`);
+                }
                 let displayText = showTypeOnly ? getEventTypeName(cell.type) : cell.name;
                 ctx.log(`揭示了 (${rx+1}, ${ry+1})：${displayText}`, 'info');
                 revealed++;
@@ -1010,23 +1041,31 @@
         let title = "", msg = "";
         let survivors = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
         let survivorCount = survivors.length;
+        
         if (win) {
-            if (survivorCount === 1) { title = "孤光终临"; msg = "你独自一人抵达了终点，虽然孤独，但生存了下来。"; }
-            else if (survivorCount === 2) { title = "残月同辉"; msg = "你与一名队友成功抵达，微弱的星光汇聚在一起。"; }
-            else { title = "圣光普照"; msg = "奇迹！全员生还抵达终点！圣光将照耀你们。"; }
-            // 胜利时揭示终点所有格子
-            gameState.endZone.forEach(pos => {
-                let cell = gameState.map[pos.y][pos.x];
-                cell.revealed = true;
-            });
-            renderMap(); // 刷新地图显示终点
+            // 计算得分
+            let score = survivorCount * 10;score += Math.floor(gameState.player.bread / 5);
+            score += gameState.runes * 5;
+            score += (MAX_DAYS - gameState.day) * 2;
+            let rank = "";
+            if (score >= 50) rank = "SSS";
+            else if (score >= 40) rank = "SS";
+            else if (score >= 30) rank = "S";
+            else if (score >= 20) rank = "A";
+            else rank = "B";
+            
+            if (survivorCount === 1) { title = "孤光终临"; msg = `你独自一人抵达了终点。\n评分：${score} (${rank})`; }
+            else if (survivorCount === 2) { title = "残月同辉"; msg = `你与一名队友成功抵达。\n评分：${score} (${rank})`; }
+            else { title = "圣光普照"; msg = `全员生还！\n评分：${score} (${rank})`; }
+            
+            // 显示终点
+            
+            gameState.endZone.forEach(pos => { gameState.map[pos.y][pos.x].revealed = true; });
+                renderMap();
         } else {
             title = "游戏结束";
             msg = reason || "你倒在了第十夜的黑暗中...";
-            gameState.endZone.forEach(pos => {
-                let cell = gameState.map[pos.y][pos.x];
-                cell.revealed = true;
-            });
+            gameState.endZone.forEach(pos => { gameState.map[pos.y][pos.x].revealed = true; });
             renderMap();
             let endCoords = gameState.endZone.map(p => `(${p.x+1},${p.y+1})`).join(', ');
             msg += `\n\n终点位置: ${endCoords}`;
@@ -1043,17 +1082,43 @@
                 const cellData = gameState.map[y][x];
                 const cellEl = document.createElement('div');
                 cellEl.className = 'cell';
+                
+                // 迷雾与揭示
                 if (cellData.revealed) {
                     cellEl.classList.add('revealed');
-                    if (cellData.type !== TYPE_EMPTY) cellEl.innerHTML = `<span class="event-icon">${cellData.icon}</span>`;
-                } else cellEl.classList.add('fog');
+                    if (cellData.type !== TYPE_EMPTY) {
+                        cellEl.innerHTML = `<span class="event-icon">${cellData.icon}</span>`;
+                    }
+                } else {
+                    cellEl.classList.add('fog');
+                }
+                
+                // 当前位置（覆盖迷雾样式）
                 if (x === gameState.pos.x && y === gameState.pos.y) {
                     cellEl.classList.add('current');
                     cellEl.classList.remove('fog');
                     cellEl.innerHTML = `<i class="fas fa-user text-gold"></i>`;
                 }
-                if (canMove && canMoveTo(x, y)) cellEl.classList.add('highlight-move');
-                if (cellData.type === TYPE_END && cellData.revealed) { cellEl.classList.add('end-zone'); cellEl.innerHTML = `<span class="event-icon">${cellData.icon}</span>`; }
+                
+                // 可移动高亮
+                if (canMove && canMoveTo(x, y)) {
+                    cellEl.classList.add('highlight-move');
+                }
+                
+                // 终点区域（如果已揭示）
+                if (cellData.type === TYPE_END && cellData.revealed) {
+                    cellEl.classList.add('end-zone');
+                    // 如果当前格已是终点且未被玩家覆盖，显示图标
+                    if (!(x === gameState.pos.x && y === gameState.pos.y)) {
+                        cellEl.innerHTML = `<span class="event-icon">${cellData.icon}</span>`;
+                    }
+                }
+                
+                // 出生点高亮（永远显示，无论是否已揭示）
+                if (gameState.startPos && x === gameState.startPos.x && y === gameState.startPos.y) {
+                    cellEl.classList.add('start-point');
+                }
+                
                 cellEl.onclick = () => handleCellClick(x, y);
                 gridEl.appendChild(cellEl);
             }
@@ -1063,6 +1128,7 @@
     function updateUI() {
         document.getElementById('dayDisplay').innerText = gameState.day;
         document.getElementById('stepDisplay').innerText = gameState.steps;
+        document.getElementById('difficultyDisplay').innerText = gameState.difficulty === "hard" ? "🔥 困难" : "🌿 普通";
         const runeEl = document.getElementById('runeDisplay');
         if (gameState.runes > 0) { runeEl.classList.remove('hidden'); document.getElementById('runeCount').innerText = gameState.runes; }
         else runeEl.classList.add('hidden');
@@ -1154,6 +1220,10 @@
     }
 
     function startGame() {
+        // 弹出难度选择
+        let difficulty = confirm("选择难度：\n确定 → 困难模式（移动后格子重新迷雾）\n取消 → 普通模式");
+        gameState.difficulty = difficulty ? "hard" : "normal";
+        
         document.getElementById('startScreen').classList.add('hidden');
         document.getElementById('gameUI').classList.remove('hidden');
         initGame();
@@ -1185,16 +1255,27 @@
         renderMap();
         updateUI();
         log("求生小队集结。目标：圣光之门。", "highlight");
+        gameState.permanentRevealed = new Set();
+        // 出生点永久揭示
+        gameState.permanentRevealed.add(`${gameState.pos.x},${gameState.pos.y}`);
+        // ... 其他初始化
     }
 
     function generateMap() {
+        // 随机起点
         let startX = Math.floor(Math.random() * MAP_SIZE), startY = Math.floor(Math.random() * MAP_SIZE);
         gameState.pos = { x: startX, y: startY };
+        gameState.startPos = { x: startX, y: startY }; // 用于高亮
+        
         let endZone = [];
         let valid = false;
+        const MIN_DIST = 15; // 保底曼哈顿距离
+        
         while (!valid) {
             let ex = Math.floor(Math.random() * (MAP_SIZE - 1)), ey = Math.floor(Math.random() * (MAP_SIZE - 1));
             let endCells = [[ex, ey], [ex+1, ey], [ex, ey+1], [ex+1, ey+1]];
+            
+            // 检查是否在起点为中心的 4x4 正方形内
             let inside = false;
             for (let [x, y] of endCells) {
                 if (x >= startX-1 && x <= startX+2 && y >= startY-1 && y <= startY+2) {
@@ -1202,15 +1283,30 @@
                     break;
                 }
             }
-            if (!inside) { endZone = endCells.map(([x,y]) => ({x, y})); valid = true; }
+            if (inside) continue;
+            
+            // 计算终点区域与起点的最小曼哈顿距离
+            let minDist = Infinity;
+            for (let [x, y] of endCells) {
+                let dist = Math.abs(x - startX) + Math.abs(y - startY);
+                if (dist < minDist) minDist = dist;
+            }
+            if (minDist >= MIN_DIST) {
+                endZone = endCells.map(([x,y]) => ({x, y}));
+                valid = true;
+            }
         }
         gameState.endZone = endZone;
+        
+        // 创建事件池（与原代码相同）
         let eventPool = [];
         EVENT_DEFS.forEach(def => { for(let i=0; i<def.count; i++) eventPool.push({...def}); });
         for (let i = eventPool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [eventPool[i], eventPool[j]] = [eventPool[j], eventPool[i]];
         }
+        
+        // 填充地图
         let grid = [], eventIdx = 0;
         for (let y = 0; y < MAP_SIZE; y++) {
             let row = [];
