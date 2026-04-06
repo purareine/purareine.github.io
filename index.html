@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -9,7 +8,6 @@
 <link href="https://image.uc.cn/s/uae/g/3n/mos-production/fontawesome-free-7.1.0-web/css/fontawesome.min.css" rel="stylesheet"/>
 <script src="https://image.uc.cn/s/uae/g/3n/mos-production/0915/3.4.17.js"></script>
 <style>
-    /* 样式与上一版本相同，此处省略以保持简洁，实际使用请复制完整样式 */
     :root {
         --bg-color: #121212;
         --panel-bg: #1e1e1e;
@@ -251,9 +249,14 @@
         background: #000;
         display: flex;
         justify-content: space-between;
+        align-items: center;
         border-bottom: 1px solid #333;
         font-size: 0.9rem;
         flex-shrink: 0;
+    }
+    .top-bar-left {
+        display: flex;
+        gap: 15px;
     }
     .middle-section {
         flex: 1;
@@ -309,6 +312,19 @@
         margin-top: 20px;
         justify-content: center;
     }
+    .restart-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        margin-left: 10px;
+    }
+    .restart-btn:active {
+        transform: scale(0.95);
+    }
     @media (min-width: 768px) {
         .main-layout {
             max-width: 1200px;
@@ -339,23 +355,6 @@
             bottom: 0;
         }
     }
-.restart-btn {
-    background: #ff4444;
-    color: white;
-    border: none;
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    margin-left: 10px;
-}
-.restart-btn:active {
-    transform: scale(0.95);
-}
-.top-bar-left {
-    display: flex;
-    gap: 15px;
-}
 </style>
 </head>
 <body>
@@ -389,7 +388,7 @@
             <p class="mb-2"><strong class="text-red">💀 警告：</strong>你的生命最为珍贵！一旦你倒下，游戏即告失败。</p>
             <p class="mb-2"><strong class="text-white">📜 规则：</strong>每回合移动1-3格，每格消耗全队每人1块面包，并触发随机事件。</p>
             <p class="mb-2"><strong class="text-gold">✨ 上帝祝福：</strong>每成功度过<strong>4次试炼</strong>或全队累计消耗<strong>35块面包</strong>时，你将获得三选一奖励（面包、生命恢复或揭示迷雾）。</p>
-            <p class="mb-2"><strong class="text-gold">🧙 旅行商人：</strong>当有队友牺牲时，神秘商人会出现。你可以用<strong>4块面包</strong>或<strong>1生命</strong>换取终点距离提示（最少步数）。</p>
+            <p class="mb-2"><strong class="text-gold">🧙 旅行商人：</strong>当有队友牺牲时，神秘商人会出现。你可以用<strong>4块面包</strong>或<strong>1生命</strong>换取一次传送到终点附近的机会。</p>
             <p class="mb-2"><strong class="text-white">🏆 胜利：</strong>抵达终点，存活队友越多奖励越丰厚！</p>
         </div>
         <div class="difficulty-buttons">
@@ -400,16 +399,16 @@
 </div>
 <div class="main-layout hidden" id="gameUI">
     <div class="top-bar">
-    <div class="top-bar-left">
-        <div><i class="fas fa-clock"></i> 天数: <span class="text-gold" id="dayDisplay">1</span>/10</div>
-        <div><i class="fas fa-shoe-prints"></i> 步数: <span class="text-gold" id="stepDisplay">0</span>/3</div>
-        <div class="hidden" id="runeDisplay"><i class="fas fa-shield-alt text-blue-400"></i> <span id="runeCount">0</span></div>
+        <div class="top-bar-left">
+            <div><i class="fas fa-clock"></i> 天数: <span class="text-gold" id="dayDisplay">1</span>/10</div>
+            <div><i class="fas fa-shoe-prints"></i> 步数: <span class="text-gold" id="stepDisplay">0</span>/3</div>
+            <div class="hidden" id="runeDisplay"><i class="fas fa-shield-alt text-blue-400"></i> <span id="runeCount">0</span></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div id="difficultyDisplay"></div>
+            <button class="restart-btn" onclick="restartGame()">🔄 重新开始</button>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <div id="difficultyDisplay"></div>
-        <button class="restart-btn" onclick="restartGame()">🔄 重新开始</button>
-    </div>
-</div>
     <div class="middle-section">
         <div class="map-container">
             <div class="game-grid" id="gameGrid"></div>
@@ -456,6 +455,7 @@
     const TYPE_END = 'end';
     const TYPE_EMPTY = 'empty';
 
+    // 修改事件池：上帝指引从6格减为4格，腐败储粮增加2格（总数15）
     const EVENT_DEFS = [
         { id: 'wheat', type: TYPE_FOOD, name: '麦穗之赐', icon: '🌾', count: 72, effect: (ctx) => {
             let amount = Math.random() < 0.6 ? 2 : 1;
@@ -463,7 +463,7 @@
             chars.forEach(c => { if (c.hp > 0) c.bread += amount; });
             ctx.log(`麦穗之赐：每人获得 ${amount} 块面包。`, 'highlight');
         }},
-        { id: 'rotten', type: TYPE_FOOD, name: '腐败储粮', icon: '🍂', count: 13, effect: (ctx) => {
+        { id: 'rotten', type: TYPE_FOOD, name: '腐败储粮', icon: '🍂', count: 15, effect: (ctx) => {
             if (Math.random() < 0.3) {
                 let amount = Math.random() < 0.5 ? 1 : 2;
                 ctx.log(`腐败储粮中意外发现了 ${amount} 块面包！`, 'highlight');
@@ -520,7 +520,7 @@
             ctx.log('生命祝福：全员恢复1点生命。', 'highlight');
             [ctx.player, ...ctx.allies].forEach(c => { if (c.hp > 0 && c.hp < c.maxHp) c.hp++; });
         }},
-        { id: 'guidance', type: TYPE_MIRACLE, name: '上帝指引', icon: '👁️', count: 6, effect: (ctx) => {
+        { id: 'guidance', type: TYPE_MIRACLE, name: '上帝指引', icon: '👁️', count: 4, effect: (ctx) => {
             let endPositions = ctx.state.endZone;
             let minX = Math.min(...endPositions.map(p => p.x));
             let maxX = Math.max(...endPositions.map(p => p.x));
@@ -557,7 +557,7 @@
     ];
 
     const ROLES = {
-        healer: { name: '执烛医者', icon: 'fa-user-nurse', hp: 4, bread: 7, desc: '队友濒死时转移1生命；自愈1次；第4、8天恢复1生命。' },
+        healer: { name: '执烛医者', icon: 'fa-user-nurse', hp: 4, bread: 7, desc: '主动技能：消耗自己1生命救治一名队友（生命-1以上）。自愈1次。' },
         guardian: { name: '破晓卫者', icon: 'fa-shield-alt', hp: 2, bread: 7, desc: '每次试炼可保护2名角色免受伤害或损失。' },
         shadow: { name: '窃影行者', icon: 'fa-user-secret', hp: 2, bread: 5, desc: '每天1次偷队友1面包；难民抢劫时自动偷回。' },
         wealth: { name: '财富使者', icon: 'fa-coins', hp: 2, bread: 14, desc: '移动前可投资相邻未揭示格子。' },
@@ -582,10 +582,87 @@
     let wealthInvestMode = false;
     let wealthInvestAmount = 0;
 
-    // 难度选择函数
-    function selectDifficulty(difficulty) {
-        gameState.difficulty = difficulty;
-        showRoleSelection();
+    // 医者主动技能函数
+    function healerActiveSkill() {
+        if (gameState.player.role !== 'healer') return;
+        if (gameState.player.hp <= 1) {
+            log("你的生命不足，无法救治他人。", "danger");
+            return;
+        }
+        let targets = [gameState.player, ...gameState.allies].filter(c => c.hp > 0 && c.hp < c.maxHp && c !== gameState.player);
+        if (targets.length === 0) {
+            log("没有需要救治的队友。", "info");
+            return;
+        }
+        let actions = targets.map(c => ({
+            text: c.name,
+            action: () => {
+                if (c.hp <= 0) {
+                    log("该角色已死亡，无法救治。", "danger");
+                    closeModal();
+                    return;
+                }
+                if (c.hp === c.maxHp) {
+                    log("该角色生命已满，无需救治。", "info");
+                    closeModal();
+                    return;
+                }
+                gameState.player.hp--;
+                c.hp++;
+                log(`执烛医者消耗自己1生命，救治了${c.name}，${c.name}恢复1生命。`, 'highlight');
+                updateUI();
+                closeModal();
+            }
+        }));
+        showModal("执烛医者", "选择要救治的队友：", actions);
+    }
+
+    // 每日步数提示
+    function showDailyDistance() {
+        let minDist = Infinity;
+        for (let pos of gameState.endZone) {
+            let dist = Math.abs(pos.x - gameState.pos.x) + Math.abs(pos.y - gameState.pos.y);
+            if (dist < minDist) minDist = dist;
+        }
+        let msg = `第 ${gameState.day} 天，距离圣光之门至少还有 ${minDist} 步。`;
+        showModal("距离提示", msg, [{text:"继续前进", action:closeModal}]);
+    }
+
+    // 传送函数（空投）
+    function teleportToNearEnd() {
+        // 计算所有距离终点 <=5 的格子（不包括终点本身）
+        let candidates = [];
+        for (let y = 0; y < MAP_SIZE; y++) {
+            for (let x = 0; x < MAP_SIZE; x++) {
+                let minDistToEnd = Infinity;
+                for (let pos of gameState.endZone) {
+                    let d = Math.abs(x - pos.x) + Math.abs(y - pos.y);
+                    if (d < minDistToEnd) minDistToEnd = d;
+                }
+                if (minDistToEnd <= 5 && minDistToEnd > 0) {
+                    // 排除终点格子本身
+                    let isEnd = gameState.endZone.some(p => p.x === x && p.y === y);
+                    if (!isEnd) candidates.push({x, y});
+                }
+            }
+        }
+        if (candidates.length === 0) {
+            log("没有合适的传送位置。", "danger");
+            return false;
+        }
+        let randomIndex = Math.floor(Math.random() * candidates.length);
+        let newPos = candidates[randomIndex];
+        // 移动玩家到新位置
+        gameState.pos = newPos;
+        // 揭示新位置格子
+        let cell = gameState.map[newPos.y][newPos.x];
+        cell.revealed = true;
+        log(`传送生效！你被送到了 (${newPos.x+1}, ${newPos.y+1})。`, 'highlight');
+        // 不清空步数，但可以决定不触发事件（可选，这里不触发事件）
+        // 注意：不消耗步数，但为了平衡，可以设置当日剩余步数为0
+        gameState.steps = MAX_STEPS; // 强制结束回合
+        updateUI();
+        return true;
     }
 
     function showDistributionDialog(amount, onDistribute) {
@@ -645,9 +722,9 @@
                 }));
                 showModal("上帝祝福", "选择恢复生命的角色：", actions2);
             }},
-            { text: "揭示3格", action: () => {
+            { text: "揭示2格", action: () => {
                 closeModal();
-                revealRandomCells({state: gameState, map: gameState.map, log: log}, 3, true);
+                revealRandomCells({state: gameState, map: gameState.map, log: log}, 2, true);
             }}
         ];
         showModal("上帝祝福", "请选择一项奖励：", actions);
@@ -667,15 +744,6 @@
         else if (type === TYPE_TRIAL) gameState.eventCount.trial++;
         else if (type === TYPE_MIRACLE) gameState.eventCount.miracle++;
         updateEventStats();
-    }
-
-    function dailyHealerHeal() {
-        if (gameState.player.role === 'healer' && (gameState.day === 4 || gameState.day === 8)) {
-            if (gameState.player.hp < gameState.player.maxHp) {
-                gameState.player.hp++;
-                log("执烛医者因第" + gameState.day + "天，恢复了1点生命。", "highlight");
-            }
-        }
     }
 
     function shareBreadToAlly(ally) {
@@ -701,7 +769,7 @@
             return;
         }
         seerSelectMode = true;
-        seerRevealRemaining = (gameState.difficulty === "hard") ? 1 : 2;
+        seerRevealRemaining = 2; // 普通/困难都是2格
         document.getElementById('skillBtn').classList.add('select-mode-active');
         log(`请点击 ${seerRevealRemaining} 个未揭示的格子以查看事件类型。`, "highlight");
     }
@@ -804,12 +872,7 @@
         let chars = [gameState.player, ...gameState.allies];
         chars.forEach(c => {
             if (c.hp > 0 && c.bread < 0) {
-                if (c !== gameState.player && gameState.player.role === 'healer' && gameState.player.hp > 0) {
-                    log(`执烛医者保护了 ${c.name}，消耗自己1生命。`, 'highlight');
-                    gameState.player.hp--;
-                    c.bread = 0;
-                    return;
-                }
+                // 医者保护已改为主动技能，这里不再自动保护，直接死亡
                 c.hp = 0;
                 log(`${c.name} 因饥饿倒下。`, 'danger');
                 if (!c.isPlayer && c.bread > 0) {
@@ -882,6 +945,7 @@
     }
 
     function checkDeath() {
+        // 医者自愈（被动）
         if (gameState.player.hp <= 0 && gameState.player.role === 'healer' && !gameState.healerSelfReviveUsed) {
             gameState.healerSelfReviveUsed = true;
             gameState.player.hp = 1;
@@ -929,7 +993,10 @@
                 action: () => {
                     if (gameState.player.bread >= 4) {
                         gameState.player.bread -= 4;
-                        revealDistance();
+                        let success = teleportToNearEnd();
+                        if (!success) {
+                            log("传送失败，没有合适位置。", "danger");
+                        }
                         closeModal();
                     } else {
                         log("面包不足，无法交易。", "danger");
@@ -956,10 +1023,15 @@
                                     c.bread = 0;
                                     log(`${c.name} 牺牲了。`, 'danger');
                                 } else {
+                                    // 玩家死亡，立即结束游戏
                                     endGame(false, "你在交易中失去了生命...");
                                 }
+                            } else {
+                                let success = teleportToNearEnd();
+                                if (!success) {
+                                    log("传送失败，没有合适位置。", "danger");
+                                }
                             }
-                            revealDistance();
                             closeModal();
                             updateUI();
                         }
@@ -975,16 +1047,7 @@
                 }
             }
         ];
-        showModal("旅行商人", "一位神秘商人出现。你可以用以下方式换取终点距离信息：", actions);
-    }
-
-    function revealDistance() {
-        let minDist = Infinity;
-        for (let pos of gameState.endZone) {
-            let dist = Math.abs(pos.x - gameState.pos.x) + Math.abs(pos.y - gameState.pos.y);
-            if (dist < minDist) minDist = dist;
-        }
-        log(`旅行商人告诉你：圣光之门距离此地最少需要移动 ${minDist} 步。`, 'highlight');
+        showModal("旅行商人", "一位神秘商人出现。你可以用以下方式换取一次传送到终点附近的机会：", actions);
     }
 
     function endTurn() {
@@ -1000,7 +1063,8 @@
             seerRevealRemaining = 0;
             document.getElementById('skillBtn').classList.remove('select-mode-active');
         }
-        dailyHealerHeal();
+        // 每日距离提示
+        showDailyDistance();
         log(`=== 第 ${gameState.day} 天 ===`, 'highlight');
         let aliveChars = [gameState.player, ...gameState.allies].filter(c => c.hp > 0);
         let totalBread = aliveChars.reduce((s,c)=>s+c.bread,0);
@@ -1028,6 +1092,8 @@
             if (gameState.wealthInvestUsedToday) { showModal("财富使者", "今日已使用过投资技能。", [{text:"确定", action:closeModal}]); return; }
             startWealthInvest();
             closeModal();
+        } else if (role === 'healer') {
+            healerActiveSkill();
         } else {
             showModal("提示", "该角色技能为被动技能或当前不可用。", [{text:"确定", action:closeModal}]);
         }
@@ -1173,6 +1239,7 @@
         else if (role === 'shadow') { skillText = "偷取面包"; disabled = gameState.shadowStolenToday; }
         else if (role === 'seer') { skillText = "揭示迷雾"; disabled = gameState.seerUsedToday; }
         else if (role === 'wealth') { skillText = "投资"; disabled = gameState.wealthInvestUsedToday; }
+        else if (role === 'healer') { skillText = "救治队友"; disabled = false; }
         else skillText = "被动技能";
         skillBtn.innerHTML = `<i class="fas fa-magic"></i> ${skillText}`;
         skillBtn.disabled = disabled;
@@ -1215,40 +1282,6 @@
         document.getElementById('modalBody').innerHTML = '';
     }
 
-    function restartGame() {
-        // 重置游戏状态
-        gameState.isGameOver = false;
-        gameState.merchantTriggered = false;
-        gameState.permanentRevealed = new Set();
-        gameState.shadowStolenToday = false;
-        gameState.seerUsedToday = false;
-        gameState.wealthInvestUsedToday = false;
-        gameState.healerSelfReviveUsed = false;
-        gameState.trialCount = 0;
-        gameState.totalBreadConsumed = 0;
-        gameState.eventCount = { food: 0, trial: 0, miracle: 0 };
-        gameState.runes = 0;
-    
-        seerSelectMode = false;
-        seerRevealRemaining = 0;
-        wealthInvestMode = false;
-    
-        // 隐藏游戏界面，显示开始界面
-        document.getElementById('gameUI').classList.add('hidden');
-        document.getElementById('startScreen').classList.remove('hidden');
-    
-        // 重置开始界面显示状态
-        document.getElementById('introArea').classList.remove('hidden');
-        document.getElementById('roleSelectionArea').classList.add('hidden');
-        document.getElementById('startGameBtn').classList.add('hidden');
-    
-        // 重置角色卡片翻转状态
-        document.getElementById('roleCardInner').parentElement.classList.remove('flipped');
-    
-        // 清空日志
-        clearLog();
-    }
-
     function showRoleSelection() {
         document.getElementById('introArea').classList.add('hidden');
         document.getElementById('roleSelectionArea').classList.remove('hidden');
@@ -1268,10 +1301,41 @@
         document.getElementById('startGameBtn').classList.remove('hidden');
     }
 
+    function selectDifficulty(difficulty) {
+        gameState.difficulty = difficulty;
+        showRoleSelection();
+    }
+
     function startGame() {
         document.getElementById('startScreen').classList.add('hidden');
         document.getElementById('gameUI').classList.remove('hidden');
         initGame();
+    }
+
+    function restartGame() {
+        gameState.isGameOver = false;
+        gameState.merchantTriggered = false;
+        gameState.permanentRevealed = new Set();
+        gameState.shadowStolenToday = false;
+        gameState.seerUsedToday = false;
+        gameState.wealthInvestUsedToday = false;
+        gameState.healerSelfReviveUsed = false;
+        gameState.trialCount = 0;
+        gameState.totalBreadConsumed = 0;
+        gameState.eventCount = { food: 0, trial: 0, miracle: 0 };
+        gameState.runes = 0;
+        seerSelectMode = false;
+        seerRevealRemaining = 0;
+        wealthInvestMode = false;
+        
+        document.getElementById('gameUI').classList.add('hidden');
+        document.getElementById('startScreen').classList.remove('hidden');
+        document.getElementById('introArea').classList.remove('hidden');
+        document.getElementById('roleSelectionArea').classList.add('hidden');
+        document.getElementById('startGameBtn').classList.add('hidden');
+        document.getElementById('roleCardInner').parentElement.classList.remove('flipped');
+        clearLog();
+        log("游戏已重置，请选择难度并抽取身份牌。", "info");
     }
 
     function initGame() {
@@ -1304,6 +1368,8 @@
         renderMap();
         updateUI();
         log("求生小队集结。目标：圣光之门。", "highlight");
+        // 第一天开始时显示距离提示
+        showDailyDistance();
     }
 
     function generateMap() {
